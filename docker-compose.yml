@@ -1,0 +1,126 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: askrag-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: askrag_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - askrag-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: askrag-backend
+    restart: unless-stopped
+    environment:
+      # Database
+      MONGODB_URL: mongodb://admin:admin123@mongodb:27017/askrag_db?authSource=admin
+      MONGODB_DB_NAME: askrag_db
+      
+      # JWT
+      JWT_SECRET_KEY: your-super-secret-jwt-key-change-in-production-2024
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      
+      # File Upload
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE: 10485760
+      
+      # FAISS
+      FAISS_INDEX_PATH: /app/data/faiss_index
+      
+      # Environment
+      ENVIRONMENT: development
+      DEBUG: "True"
+      
+      # CORS
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,http://frontend"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/data:/app/data
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - askrag-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend Web App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: askrag-frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+      VITE_APP_NAME: AskRAG
+      VITE_MAX_FILE_SIZE: 10485760
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - askrag-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Redis (Optional - for caching and sessions)
+  redis:
+    image: redis:7-alpine
+    container_name: askrag-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - askrag-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command: redis-server --appendonly yes
+
+networks:
+  askrag-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local

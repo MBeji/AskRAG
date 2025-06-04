@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: askrag-mongodb-dev
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: askrag_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_dev_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - askrag-dev-network
+
+  # Backend API (Development mode with hot reload)
+  backend-dev:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: askrag-backend-dev
+    restart: unless-stopped
+    environment:
+      # Database
+      MONGODB_URL: mongodb://admin:admin123@mongodb:27017/askrag_db?authSource=admin
+      MONGODB_DB_NAME: askrag_db
+      
+      # JWT
+      JWT_SECRET_KEY: dev-secret-key-2024
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      
+      # File Upload
+      UPLOAD_DIR: /app/uploads
+      MAX_FILE_SIZE: 10485760
+      
+      # FAISS
+      FAISS_INDEX_PATH: /app/data/faiss_index
+      
+      # Environment
+      ENVIRONMENT: development
+      DEBUG: "True"
+      
+      # CORS
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:5173"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+      - /app/.pytest_cache
+    depends_on:
+      - mongodb
+    networks:
+      - askrag-dev-network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend (Development mode with hot reload)
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: askrag-frontend-dev
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+      VITE_APP_NAME: AskRAG Dev
+      VITE_MAX_FILE_SIZE: 10485760
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend-dev
+    networks:
+      - askrag-dev-network
+    command: npm run dev -- --host 0.0.0.0
+
+  # Redis (Development)
+  redis-dev:
+    image: redis:7-alpine
+    container_name: askrag-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - askrag-dev-network
+
+networks:
+  askrag-dev-network:
+    driver: bridge
+
+volumes:
+  mongodb_dev_data:
+    driver: local

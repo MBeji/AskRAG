@@ -1,0 +1,25 @@
+{
+  "users": [
+    {
+      "email": "admin@askrag.com",
+      "username": "admin",
+      "full_name": "Administrator",
+      "is_active": true,
+      "is_admin": true,
+      "_id": "users_000001",
+      "created_at": "2025-05-28T09:23:03.722686"
+    }
+  ],
+  "documents": [
+    {
+      "filename": "demo.pdf",
+      "title": "Document de d\u00e9monstration",
+      "content": "Ceci est un document de test pour AskRAG.",
+      "file_type": "pdf",
+      "user_id": "users_000001",
+      "_id": "documents_000001",
+      "created_at": "2025-05-28T09:23:03.724019"
+    }
+  ],
+  "chat_sessions": []
+}
