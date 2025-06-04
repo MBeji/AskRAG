@@ -5,6 +5,7 @@ import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 const RegisterPage: React.FC = () => {
   const [formData, setFormData] = useState({
+    username: '', // Added username
     firstName: '',
     lastName: '',
     email: '',
@@ -53,12 +54,13 @@ const RegisterPage: React.FC = () => {
 
     try {
       await register({
+        username: formData.username, // Pass username
         email: formData.email,
         password: formData.password,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
+        full_name: `${formData.firstName} ${formData.lastName}`.trim(), // Construct full_name
       });
-      navigate('/');
+      // Redirect to login page with a success message, or let AuthContext handle it
+      navigate('/login?registered=true'); // Example: redirect to login
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Registration failed. Please try again.');
     } finally {
@@ -107,16 +109,31 @@ const RegisterPage: React.FC = () => {
           )}
 
           <div className="space-y-4">
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                Username
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                autoComplete="username"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Choose a username"
+                value={formData.username}
+                onChange={handleInputChange}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
-                  First name
+                  First name (Optional)
                 </label>
                 <input
                   id="firstName"
                   name="firstName"
                   type="text"
-                  required
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="First name"
                   value={formData.firstName}
@@ -126,13 +143,12 @@ const RegisterPage: React.FC = () => {
 
               <div>
                 <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
-                  Last name
+                  Last name (Optional)
                 </label>
                 <input
                   id="lastName"
                   name="lastName"
                   type="text"
-                  required
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Last name"
                   value={formData.lastName}
@@ -143,7 +159,7 @@ const RegisterPage: React.FC = () => {
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
+                Email address (Required)
               </label>
               <input
                 id="email"

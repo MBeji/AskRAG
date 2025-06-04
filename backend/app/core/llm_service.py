@@ -343,5 +343,106 @@ Question: {question}"""
                 'test_mode': False
             }
 
-# Instance globale du service
-llm_service = LLMService()
+# Instance globale du service, configured with defaults or environment variables
+# This instance uses 'gpt-3.5-turbo' by default.
+# llm_service = LLMService()
+# For Step 15, we'll ensure it uses settings from config.py for model name, temp, etc.
+
+from app.core.config import settings as app_settings # Import app_settings
+
+# Global LLM service instance, configured with settings from app_settings
+# This will be initialized at module load time.
+try:
+    global_llm_service = LLMService(
+        model_name=app_settings.LLM_MODEL_NAME,
+        api_key=app_settings.OPENAI_API_KEY
+    )
+except ValueError as e:
+    logger.error(f"Failed to initialize Global LLMService: {e}")
+    global_llm_service = None
+
+
+async def generate_answer_from_context(query: str, retrieved_chunks: List[Dict[str, Any]]) -> str: # Changed context_chunks to retrieved_chunks
+    """
+    Generates an answer to a query based on a list of retrieved document chunks using the LLM.
+    Context is built by adding chunks one by one until token limit is approached.
+    """
+    if global_llm_service is None:
+        logger.error("LLMService not initialized. Cannot generate answer.")
+        raise RuntimeError("LLMService not available. Check OPENAI_API_KEY.")
+
+    if not retrieved_chunks:
+        return "Je ne trouve pas la réponse dans les documents fournis."
+
+    # Build context intelligently, respecting MAX_CONTEXT_TOKENS
+    # Estimate boilerplate tokens (prompt instructions, "Contexte:", "Question:", "Réponse:", separators)
+    # This is a rough estimation. A proper tokenizer (like tiktoken for OpenAI) would be more accurate.
+    boilerplate_tokens_estimate = 150  # Increased to account for "Contexte:", "---", "Question:", "Réponse:" and separators
+    query_tokens = global_llm_service.estimate_tokens(query)
+    max_context_actual_tokens = app_settings.MAX_CONTEXT_TOKENS - query_tokens - boilerplate_tokens_estimate
+
+    context_to_send = ""
+    current_context_tokens = 0
+
+    for chunk_info in retrieved_chunks: # Assumes chunks are sorted by relevance
+        chunk_text = chunk_info.get("chunk_text", "")
+        if not chunk_text:
+            continue
+
+        chunk_tokens = global_llm_service.estimate_tokens(chunk_text)
+        separator_tokens = global_llm_service.estimate_tokens("\n---\n") if context_to_send else 0
+
+        if current_context_tokens + chunk_tokens + separator_tokens <= max_context_actual_tokens:
+            if context_to_send:
+                context_to_send += "\n---\n"
+                current_context_tokens += separator_tokens
+            context_to_send += chunk_text
+            current_context_tokens += chunk_tokens
+        else:
+            # Cannot fit more chunks
+            logger.info(f"Context built with {current_context_tokens} tokens. Max allowed for context: {max_context_actual_tokens}. Some chunks may have been omitted.")
+            break
+
+    if not context_to_send:
+        logger.warning(f"No context could be built for query '{query}' within token limits, though chunks were retrieved.")
+        return "Les documents pertinents trouvés sont trop volumineux pour être traités dans la limite de contexte actuelle."
+
+
+    prompt = f"""Vous êtes un assistant AskRAG. Répondez à la question suivante en vous basant uniquement sur le contexte fourni. Si le contexte ne contient pas la réponse, dites 'Je ne trouve pas la réponse dans les documents fournis'. Soyez concis et précis. Ne mentionnez pas que vous utilisez un contexte.
+
+Contexte:
+---
+{context_to_send}
+---
+
+Question: {query}
+
+Réponse:"""
+# {truncated_context} was changed to {context_to_send}
+
+Contexte:
+---
+{truncated_context}
+---
+
+Question: {query}
+
+Réponse:"""
+
+    try:
+        # Using the generic generate_completion method from the service
+        answer = global_llm_service.generate_completion(
+            messages=[
+                # Optional: Could use the system prompt from global_llm_service.system_prompts['rag_response']
+                # {"role": "system", "content": global_llm_service.system_prompts['rag_response']},
+                {"role": "system", "content": "Vous êtes un assistant utile."}, # Simpler system prompt
+                {"role": "user", "content": prompt}
+            ],
+            temperature=app_settings.LLM_TEMPERATURE,
+            max_tokens=app_settings.LLM_MAX_OUTPUT_TOKENS
+        )
+        return answer
+    except Exception as e:
+        logger.error(f"Error generating answer from LLM: {e}")
+        # Fallback response or re-raise
+        return "Désolé, une erreur s'est produite lors de la génération de la réponse."

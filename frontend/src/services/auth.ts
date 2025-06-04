@@ -1,12 +1,17 @@
 import axios from 'axios';
-import { User, AuthResponse, AuthTokens, LoginCredentials, RegisterData, PasswordResetRequest, PasswordReset } from '../types';
+import { User, /*AuthResponse,*/ AuthTokens, LoginCredentials, RegisterData, PasswordResetRequest, PasswordReset } from '../types';
 
+// Define a simpler AuthResponse type to match current backend
+interface BackendLoginResponse {
+  access_token: string;
+  token_type: string;
+}
 class AuthService {
-  private readonly API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-  private readonly TOKEN_KEY = 'askrag_tokens';
+  private readonly API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'; // Standardized to VITE_API_BASE_URL
+  private readonly TOKEN_KEY = 'askrag_tokens'; // Stores AuthTokens { accessToken, refreshToken? }
 
   private api = axios.create({
-    baseURL: `${this.API_BASE_URL}/api/v1`,
+    baseURL: `${this.API_BASE_URL}/api/v1`, // Correctly forms http://localhost:8000/api/v1
     timeout: 30000,
     headers: {
       'Content-Type': 'application/json',
@@ -56,22 +61,31 @@ class AuthService {
   }
 
   // Authentication methods
-  async login(credentials: LoginCredentials): Promise<AuthResponse> {
+  async login(credentials: LoginCredentials): Promise<BackendLoginResponse> { // Return type matches current backend
     const formData = new FormData();
+    // The backend's OAuth2PasswordRequestForm expects 'username', not 'email' for the username field.
+    // If credentials.email is indeed the username, this is fine.
     formData.append('username', credentials.email);
     formData.append('password', credentials.password);
 
-    const response = await this.api.post('/auth/login', formData, {
+    const response = await this.api.post<BackendLoginResponse>('/auth/login', formData, { // Path is relative to baseURL
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/x-www-form-urlencoded', // Correct for OAuth2PasswordRequestForm
       },
     });
 
+    // Backend returns {access_token, token_type}. Store it.
+    // The existing storeTokens expects AuthTokens (accessToken, refreshToken).
+    // Adapt by storing only the access token for now.
+    if (response.data.access_token) {
+      this.storeTokens({ accessToken: response.data.access_token, refreshToken: null }); // No refresh token from current backend
+    }
     return response.data;
   }
 
-  async register(data: RegisterData): Promise<AuthResponse> {
-    const response = await this.api.post('/auth/register', data);
+  async register(data: RegisterData): Promise<User> { // Assuming register returns User (UserOut schema)
+    const response = await this.api.post<User>('/auth/register', data); // Path is relative to baseURL
+    // No token returned on register by current backend, so no token storage here.
     return response.data;
   }
 
@@ -117,11 +131,11 @@ class AuthService {
   }
 
   // Token management
-  storeTokens(tokens: AuthTokens): void {
+  storeTokens(tokens: AuthTokens): void { // AuthTokens might need adjustment if refreshToken is not always present
     localStorage.setItem(this.TOKEN_KEY, JSON.stringify(tokens));
   }
 
-  getStoredTokens(): AuthTokens | null {
+  getStoredTokens(): AuthTokens | null { // This will now return { accessToken: string, refreshToken: null }
     const tokens = localStorage.getItem(this.TOKEN_KEY);
     return tokens ? JSON.parse(tokens) : null;
   }

@@ -266,3 +266,193 @@ document_service = DocumentService()
 async def get_document_service() -> DocumentService:
     """Dependency to get document service"""
     return document_service
+
+# --- New functions as per Step 10 requirements ---
+from app.models.user import User as UserModel # Beanie User model
+from app.models.document import Document as DocumentModel # Beanie Document model
+from app.core.config import settings # Re-import for direct access if needed, or use existing 'settings'
+from beanie import PydanticObjectId # For type hinting doc_id
+
+# Ensure UPLOAD_DIR exists (can be called at app startup too)
+# Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True) # Done by ensure_upload_directory
+
+async def save_uploaded_file(file: UploadFile, uploader: UserModel) -> DocumentModel:
+    """
+    Validates, saves an uploaded file, and creates a DocumentDB record.
+    """
+    # Use existing document_service instance for validation and file operations
+    # This is a temporary measure; ideally, DocumentService methods would be refactored
+    # or these new functions would incorporate all logic if DocumentService is deprecated.
+
+    # 1. Validate file type and basic properties (using DocumentService helpers)
+    # Ensure filename is not None
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided.")
+
+    file_extension = Path(file.filename).suffix.lower()
+    if file_extension not in settings.ALLOWED_EXTENSIONS: # Using settings directly
+        raise HTTPException(
+            status_code=400,
+            detail=f"File extension {file_extension} not allowed. Allowed: {', '.join(settings.ALLOWED_EXTENSIONS)}"
+        )
+
+    # (Content-type validation can be tricky, often done more loosely or via magic bytes)
+
+    # 2. Generate a secure filename
+    # Use a simpler UUID-based filename for now, or adapt DocumentService.generate_safe_filename
+    secure_filename = f"{uuid.uuid4()}{file_extension}"
+    upload_dir = Path(settings.UPLOAD_DIR)
+    await aiofiles.os.makedirs(upload_dir, exist_ok=True)
+    file_path = upload_dir / secure_filename
+
+    # 3. Save the file to UPLOAD_DIR, checking size
+    file_size = 0
+    try:
+        async with aiofiles.open(file_path, 'wb') as buffer:
+            while chunk := await file.read(8192): # Read in chunks
+                file_size += len(chunk)
+                if file_size > settings.MAX_UPLOAD_SIZE:
+                    await aiofiles.os.remove(file_path) # Clean up partial file
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Max size: {settings.MAX_UPLOAD_SIZE / (1024*1024):.2f}MB"
+                    )
+                await buffer.write(chunk)
+    except Exception as e:
+        # Ensure cleanup if error occurs during write
+        if await aiofiles.os.path.exists(file_path):
+            await aiofiles.os.remove(file_path)
+        raise HTTPException(status_code=500, detail=f"Could not save file: {str(e)}")
+
+
+    # 4. Create DocumentModel instance
+    doc_db = DocumentModel(
+        filename=file.filename, # Original filename
+        filename_on_disk=secure_filename, # Store the secure name used on disk
+        content_type=file.content_type or "application/octet-stream",
+        uploader_id=str(uploader.id),
+        upload_date=datetime.utcnow(),
+        status="pending_extraction", # Initial status before text extraction
+        file_path=str(file_path.resolve()), # Store absolute path
+        file_size=file_size,
+        metadata={"original_filename": file.filename, "secure_filename": secure_filename}
+    )
+
+    # 5. Save initial DocumentModel to MongoDB
+    await doc_db.insert()
+
+    # 6. Perform synchronous text extraction
+    try:
+        # Import the global instance of DocumentExtractor
+        from app.core.document_extractor import document_extractor as global_doc_extractor
+
+        # Read the saved file content for extraction if extractor expects bytes,
+        # or pass file_path if it can read from path.
+        # The existing DocumentExtractor.extract_content can take file_path.
+        extraction_result = global_doc_extractor.extract_content(
+            file_path=str(file_path.resolve()),
+            filename=secure_filename # or file.filename
+        )
+
+        if extraction_result.get('extraction_success', False):
+            doc_db.extracted_text = extraction_result.get('content')
+            doc_db.status = "text_extracted"
+            # Update metadata if extractor provides more (e.g., page count for PDF)
+            if 'metadata' in extraction_result and isinstance(extraction_result['metadata'], dict):
+                doc_db.metadata.update(extraction_result['metadata'])
+        else:
+            doc_db.status = "failed_extraction"
+            doc_db.processing_error = extraction_result.get('error', 'Unknown extraction error.')
+
+        await doc_db.save() # Save updates (extracted_text, status, potentially new metadata)
+
+        # 7. Perform synchronous chunking and embedding generation if text extraction was successful
+        if doc_db.status == "text_extracted" and doc_db.extracted_text:
+            try:
+                from app.core.text_chunker import chunk_text_langchain
+                from app.core.embeddings import generate_embeddings as gen_embeddings_func
+
+                text_chunks = chunk_text_langchain(
+                    doc_db.extracted_text,
+                    chunk_size=settings.TEXT_CHUNK_SIZE,
+                    chunk_overlap=settings.TEXT_CHUNK_OVERLAP
+                )
+
+                if text_chunks:
+                    embeddings_list = await gen_embeddings_func(texts=text_chunks)
+
+                    doc_db.chunks = []
+                    for i, chunk_str in enumerate(text_chunks):
+                        doc_db.chunks.append({
+                            "chunk_text": chunk_str,
+                            "embedding": embeddings_list[i],
+                            "faiss_id": None # To be filled in Step 13
+                        })
+
+                    doc_db.status = "vectorized_pending_storage" # Embeddings generated, pending storage in FAISS
+                    await doc_db.save() # Save chunks with embeddings before adding to FAISS
+
+                    # Now add to FAISS
+                    from app.core.vector_store import vector_store as global_vector_store
+                    if global_vector_store is None:
+                        raise RuntimeError("Vector store not available.")
+
+                    chunk_embeddings = [chunk["embedding"] for chunk in doc_db.chunks]
+                    # Create unique IDs for each chunk to map back from FAISS
+                    # Format: "mongo_document_id:chunk_index"
+                    document_chunk_ids = [f"{str(doc_db.id)}:{i}" for i in range(len(doc_db.chunks))]
+
+                    faiss_ids = global_vector_store.add_embeddings(chunk_embeddings, document_chunk_ids)
+
+                    # Update chunks with their FAISS IDs
+                    for i, faiss_id_val in enumerate(faiss_ids):
+                        if doc_db.chunks: # Type guard
+                           doc_db.chunks[i]["faiss_id"] = faiss_id_val
+
+                    global_vector_store.save_index() # Persist FAISS index and map
+                    doc_db.status = "completed" # Or "vectorized_and_stored"
+                else:
+                    # No chunks produced, maybe text was too short or only whitespace
+                    doc_db.status = "text_extracted" # Or a new status like "no_chunks_generated", effectively completed if no text.
+
+                await doc_db.save() # Save the final state with FAISS IDs and updated status
+
+            except Exception as emb_ex:
+                # Log this error
+                # print(f"Error during chunking/embedding for {doc_db.id}: {emb_ex}") # Replace with proper logging
+                doc_db.status = "failed_vectorization"
+                doc_db.processing_error = f"Chunking/Embedding error: {str(emb_ex)}"
+                await doc_db.save()
+
+    except Exception as e: # This outer try-except handles errors from file saving or initial text extraction
+        # Log this error
+        # print(f"Error during initial file processing for {doc_db.id if 'doc_db' in locals() else 'unknown_file'}: {e}")
+        if 'doc_db' in locals() and doc_db.id: # If doc was already created
+            doc_db.status = "failed_extraction" # Or a more generic "processing_failed"
+            doc_db.processing_error = str(e)
+            await doc_db.save()
+        # If error happened before doc_db creation, it's raised by save_uploaded_file's earlier checks/io
+        # Depending on policy, you might re-raise or just let the upload succeed with failed status
+        # For now, if an error happened that wasn't an HTTPException from validation, it's caught here.
+        # If it's an HTTPException (like size limit), it would have been raised already.
+
+    return doc_db # Return the (potentially updated) document object
+
+async def list_documents_for_user(user: UserModel) -> List[DocumentModel]:
+    """
+    Retrieves all documents uploaded by a specific user.
+    """
+    # Assuming uploader_id in DocumentModel is a string representation of User's ID.
+    # If uploader_id stores PydanticObjectId, ensure comparison is correct.
+    documents = await DocumentModel.find(DocumentModel.uploader_id == str(user.id)).to_list()
+    return documents
+
+async def get_document_by_id(doc_id: PydanticObjectId, user: UserModel) -> Optional[DocumentModel]:
+    """
+    Retrieves a specific document by its ID if it belongs to the user.
+    """
+    document = await DocumentModel.find_one(
+        DocumentModel.id == doc_id,
+        DocumentModel.uploader_id == str(user.id)
+    )
+    return document

@@ -1,54 +1,62 @@
-# React + TypeScript + Vite
+# AskRAG Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This project is the frontend for AskRAG, built with React, TypeScript, and Vite.
 
-Currently, two official plugins are available:
+## Development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+To run the frontend development server:
 
-## Expanding the ESLint configuration
+1.  **Navigate to the `frontend` directory:**
+    ```bash
+    cd frontend
+    ```
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+3.  **Start the development server:**
+    ```bash
+    npm run dev
+    ```
+    The server will typically be available at `http://localhost:5173`.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Building for Production
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+To create a production build:
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+1.  **Navigate to the `frontend` directory.**
+2.  **Install dependencies (if not already done):**
+    ```bash
+    npm install
+    ```
+3.  **Run the build command:**
+    ```bash
+    npm run build
+    ```
+    The production files will be located in the `dist` directory.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Testing
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+To run tests:
+
+-   **Unit tests:**
+    ```bash
+    npm test
+    ```
+-   **End-to-end tests:**
+    ```bash
+    npm run test:e2e
+    ```
+
+## Key Technologies
+
+-   React
+-   TypeScript
+-   Vite
+-   Tailwind CSS (utility-first CSS framework)
+-   Axios (for API calls)
+-   React Router (for navigation)
+-   React Query (for data fetching and caching)
+-   Vitest (for unit testing)
+-   Playwright (for end-to-end testing)
+-   ESLint (for code linting)

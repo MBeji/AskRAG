@@ -49,11 +49,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (credentials: LoginCredentials) => {
     try {
       setLoading(true);
-      const response = await authService.login(credentials);
-      setUser(response.user);
-      setTokens(response.tokens);
-      authService.storeTokens(response.tokens);
+      await authService.login(credentials); // authService.login now stores token internally
+      const newTokens = authService.getStoredTokens();
+      setTokens(newTokens);
+      if (newTokens?.accessToken) {
+        const currentUser = await authService.getCurrentUser();
+        setUser(currentUser);
+      } else {
+        setUser(null); // Ensure user is cleared if token retrieval failed
+      }
     } catch (error) {
+      setUser(null); // Clear user/tokens on login failure
+      setTokens(null);
+      authService.clearTokens();
       throw error;
     } finally {
       setLoading(false);
@@ -63,10 +71,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (data: RegisterData) => {
     try {
       setLoading(true);
-      const response = await authService.register(data);
-      setUser(response.user);
-      setTokens(response.tokens);
-      authService.storeTokens(response.tokens);
+      // authService.register now returns the created User, and does not log in.
+      await authService.register(data);
+      // After successful registration, user is not automatically logged in.
+      // They need to go to the login page.
+      // Consider showing a success message here.
     } catch (error) {
       throw error;
     } finally {
@@ -75,9 +84,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
+    authService.logout(); // authService.logout already clears tokens from localStorage
     setUser(null);
     setTokens(null);
-    authService.clearTokens();
+    // Optional: redirect to login or home page
+    // window.location.href = '/login';
   };
 
   const refreshToken = async () => {

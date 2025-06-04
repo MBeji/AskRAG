@@ -10,6 +10,8 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
+COPY . .
+
 # Expose port
 EXPOSE 5173
 

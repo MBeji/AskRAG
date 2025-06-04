@@ -367,3 +367,32 @@ class TextChunker:
 
 # Instance globale
 text_chunker = TextChunker()
+
+
+# --- New function as per Step 12 requirements, using Langchain ---
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from app.core.config import settings as app_settings # For default chunk values
+
+def chunk_text_langchain(
+    text: str,
+    chunk_size: Optional[int] = None,
+    chunk_overlap: Optional[int] = None
+) -> List[str]:
+    """
+    Splits text into chunks using Langchain's RecursiveCharacterTextSplitter.
+    Uses chunk_size and chunk_overlap from app_settings if not provided.
+    """
+    if not text:
+        return []
+
+    final_chunk_size = chunk_size if chunk_size is not None else app_settings.TEXT_CHUNK_SIZE
+    final_chunk_overlap = chunk_overlap if chunk_overlap is not None else app_settings.TEXT_CHUNK_OVERLAP
+
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=final_chunk_size,
+        chunk_overlap=final_chunk_overlap,
+        length_function=len,
+        add_start_index=False, # We don't need start index for this simplified version
+    )
+
+    return splitter.split_text(text)

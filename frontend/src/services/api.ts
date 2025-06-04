@@ -1,22 +1,38 @@
 import axios from 'axios';
 import { authService } from './auth';
 
-// Get API URL from environment or settings
-const getApiUrl = () => {
-  const envUrl = import.meta.env.VITE_API_URL;
-  if (envUrl) return envUrl;
+// Determine API URL. Prioritize VITE_API_BASE_URL.
+// Fallback to relative path for same-origin proxy or direct to localhost:8000 for local dev.
+let resolvedApiUrl = import.meta.env.VITE_API_BASE_URL;
+
+if (!resolvedApiUrl) {
+  // If VITE_API_BASE_URL is not set, behavior might differ for dev vs prod.
+  // For dev, Vite proxy usually handles relative paths. For prod, Nginx handles it.
+  // A common default if served on same domain (through proxy) is just the path.
+  // If backend is on a different domain or port without proxy, full URL is needed.
+  // The Vite dev server proxy targets localhost:8000 for /api.
+  // The production Nginx proxies /api to backend:8000.
+  // So, using "/api" as a base and then appending "/v1/..." in calls might be more consistent
+  // OR ensure VITE_API_BASE_URL is always set appropriately.
+  // For simplicity here, let's assume if not set, it's local dev wanting to hit backend directly
+  // or it's a build where it should have been set (e.g. to '/').
   
-  const settings = localStorage.getItem('askrag-settings');
-  if (settings) {
-    const parsed = JSON.parse(settings);
-    return parsed.apiUrl || 'http://localhost:8000';
-  }
-  return 'http://localhost:8000';
-};
+  // If running in dev mode ( Vite specific import.meta.env.DEV ) and no env var,
+  // we could default to something that works with the Vite proxy e.g. '',
+  // so calls like axios.get('/api/v1/health') work.
+  // Or, if we expect full paths like `http://localhost:8000/api/v1/health` for dev,
+  // then `http://localhost:8000` is a sensible default if VITE_API_BASE_URL is missing.
+  // The current .env.development provides VITE_API_BASE_URL=http://localhost:8000.
+
+  // Let's keep it simple: if VITE_API_BASE_URL is not provided, default to http://localhost:8000.
+  // This matches the previous hardcoded default and behavior of .env.development.
+  resolvedApiUrl = 'http://localhost:8000';
+  console.warn("VITE_API_BASE_URL is not set. Defaulting to http://localhost:8000.");
+}
 
 // Create axios instance
 const api = axios.create({
-  baseURL: getApiUrl(),
+  baseURL: resolvedApiUrl,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -76,6 +92,10 @@ export const uploadDocument = async (file: File) => {
   const formData = new FormData();
   formData.append('file', file);
   
+  // Note: If baseURL is 'http://localhost:8000', path should be '/api/v1/documents/upload'
+  // If baseURL is 'http://localhost:8000/api/v1', path should be '/documents/upload'
+  // The current .env files set VITE_API_BASE_URL to the host (e.g. http://localhost:8000)
+  // and API calls in api.ts include /api/v1. This is consistent.
   const response = await api.post('/api/v1/documents/upload', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',

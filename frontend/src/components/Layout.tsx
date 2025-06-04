@@ -56,51 +56,76 @@ const Layout: React.FC = () => {
                 </NavLink>
               );
             })}
-          </nav>          {/* User Menu */}
+          {/* User Menu / Auth Links */}
           <div className="p-4 border-t border-gray-200">
-            <div className="relative">
-              <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="flex items-center w-full text-left hover:bg-gray-100 rounded-lg p-2 transition-colors"
-              >
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                  <UserIcon className="w-5 h-5 text-white" />
-                </div>
-                <div className="ml-3 flex-1">
-                  <p className="text-sm font-medium text-gray-700">
-                    {user?.firstName} {user?.lastName}
-                  </p>
-                  <p className="text-xs text-gray-500 capitalize">{user?.role.toLowerCase()}</p>
-                </div>
-                <ChevronDownIcon 
-                  className={`w-4 h-4 text-gray-400 transition-transform ${
-                    dropdownOpen ? 'rotate-180' : ''
-                  }`} 
-                />
-              </button>              {/* Dropdown Menu */}
-              {dropdownOpen && (
-                <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg py-2">
-                  <NavLink
-                    to="/profile"
-                    onClick={() => setDropdownOpen(false)}
-                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    <UserIcon className="w-4 h-4 mr-3" />
-                    Profile
-                  </NavLink>
-                  <button
-                    onClick={() => {
-                      logout();
-                      setDropdownOpen(false);
-                    }}
-                    className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    <ArrowRightOnRectangleIcon className="w-4 h-4 mr-3" />
-                    Sign out
-                  </button>
-                </div>
-              )}
-            </div>
+            {isAuthenticated && user ? (
+              <div className="relative">
+                <button
+                  onClick={() => setDropdownOpen(!dropdownOpen)}
+                  className="flex items-center w-full text-left hover:bg-gray-100 rounded-lg p-2 transition-colors"
+                >
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                    {/* Placeholder for user avatar or initials can be added here */}
+                    <UserIcon className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-gray-700">
+                      {user.full_name || user.username}
+                    </p>
+                    <p className="text-xs text-gray-500 capitalize">
+                      {user.is_superuser ? 'Admin' : 'User'}
+                    </p>
+                  </div>
+                  <ChevronDownIcon
+                    className={`w-4 h-4 text-gray-400 transition-transform ${
+                      dropdownOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                {/* Dropdown Menu */}
+                {dropdownOpen && (
+                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg py-2 z-10">
+                    <NavLink
+                      to="/profile"
+                      onClick={() => setDropdownOpen(false)}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <UserIcon className="w-4 h-4 mr-3" />
+                      Profile
+                    </NavLink>
+                    <button
+                      onClick={() => {
+                        logout();
+                        setDropdownOpen(false);
+                        // Potentially navigate to home or login page after logout
+                        // navigate('/login');
+                      }}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      <ArrowRightOnRectangleIcon className="w-4 h-4 mr-3" />
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <NavLink
+                  to="/login"
+                  className="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                >
+                  <ArrowRightOnRectangleIcon className="w-5 h-5 mr-3 text-gray-400" />
+                  Sign In
+                </NavLink>
+                <NavLink
+                  to="/register"
+                  className="flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                >
+                  <UserIcon className="w-5 h-5 mr-3 text-gray-400" /> {/* Using UserIcon for register too */}
+                  Sign Up
+                </NavLink>
+              </div>
+            )}
           </div>
         </div>
       </div>

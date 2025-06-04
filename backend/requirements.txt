@@ -1,15 +1,16 @@
 # FastAPI Core
-fastapi==0.68.0
-uvicorn[standard]==0.15.0
+fastapi>=0.95.2  # Updated for Pydantic v2 compatibility
+uvicorn[standard]>=0.20.0 # Updated uvicorn
 
 # Database
 pymongo==4.6.0
 motor==3.3.2
+beanie>=1.20.0 # Specify a recent version compatible with Pydantic v1.10+ / v2
 
 # Authentication & Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.6
+python-multipart==0.0.6 # Check compatibility if issues arise
 itsdangerous==2.1.2
 
 # File Processing
@@ -17,12 +18,26 @@ PyPDF2==3.0.1
 aiofiles==23.2.1
 
 # Utilities
-pydantic==1.8.2
+pydantic>=2.0.0 # Updated to Pydantic v2
+pydantic-settings # For BaseSettings
 python-dotenv==1.0.0
 
 # HTTP & API
 httpx==0.25.2
 requests==2.31.0
+
+# Rate Limiting
+slowapi
+
+# Document Processing
+pymupdf
+
+# AI & Embeddings
+openai
+langchain
+
+# Vector Store
+faiss-cpu
 
 # Development
 pytest==7.4.3

@@ -15,6 +15,7 @@ import PyPDF2
 import docx
 import markdown
 from bs4 import BeautifulSoup
+import fitz  # PyMuPDF
 
 try:
     import magic
@@ -177,21 +178,21 @@ class DocumentExtractor:
             }
     
     def _extract_pdf(self, content: bytes) -> str:
-        """Extrait le texte d'un PDF"""
+        """Extrait le texte d'un PDF en utilisant PyMuPDF (fitz)"""
         try:
-            pdf_file = io.BytesIO(content)
-            pdf_reader = PyPDF2.PdfReader(pdf_file)
-            
             text_parts = []
-            for page in pdf_reader.pages:
-                text = page.extract_text()
-                if text.strip():
-                    text_parts.append(text)
+            with fitz.open(stream=content, filetype="pdf") as doc:
+                for page in doc:
+                    text = page.get_text()
+                    if text.strip():
+                        text_parts.append(text)
             
             return '\n\n'.join(text_parts)
             
         except Exception as e:
-            self.logger.error(f"Erreur extraction PDF: {e}")
+            self.logger.error(f"Erreur extraction PDF avec PyMuPDF: {e}")
+            # Fallback or re-raise if PyPDF2 was a fallback
+            # For now, just raise to indicate failure with pymupdf
             raise
     
     def _extract_docx(self, content: bytes) -> str:
