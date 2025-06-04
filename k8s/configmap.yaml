@@ -1,0 +1,133 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: askrag-backend-config
+  namespace: askrag-production
+data:
+  # Application Configuration
+  PROJECT_NAME: "AskRAG API"
+  API_V1_STR: "/api/v1"
+  VERSION: "1.0.0"
+  ENVIRONMENT: "production"
+  DEBUG: "False"
+  LOG_LEVEL: "WARNING"
+  
+  # Authentication
+  JWT_ALGORITHM: "HS256"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+  REFRESH_TOKEN_EXPIRE_MINUTES: "1440"
+  
+  # Database
+  MONGODB_DB_NAME: "askrag_prod"
+  MONGODB_TEST_DB_NAME: "askrag_prod_test"
+  
+  # OpenAI Configuration
+  OPENAI_MODEL: "gpt-4"
+  OPENAI_EMBEDDING_MODEL: "text-embedding-ada-002"
+  OPENAI_MAX_TOKENS: "2000"
+  OPENAI_TEMPERATURE: "0.7"
+  
+  # File Upload
+  UPLOAD_DIR: "/app/uploads"
+  MAX_FILE_SIZE: "10485760"
+  ALLOWED_EXTENSIONS: ".pdf,.txt,.docx,.md,.rtf"
+  TEMP_DIR: "/app/temp"
+  
+  # Vector Database (FAISS)
+  FAISS_INDEX_PATH: "/app/data/faiss_index"
+  VECTOR_DIMENSION: "1536"
+  CHUNK_SIZE: "512"
+  CHUNK_OVERLAP: "50"
+  
+  # RAG Configuration
+  DEFAULT_TOP_K: "5"
+  DEFAULT_TEMPERATURE: "0.7"
+  MAX_SEARCH_RESULTS: "10"
+  SIMILARITY_THRESHOLD: "0.7"
+  
+  # Redis Configuration
+  REDIS_DB: "0"
+  REDIS_TTL: "3600"
+  
+  # Rate Limiting
+  RATE_LIMIT_REQUESTS: "1000"
+  RATE_LIMIT_WINDOW: "60"
+  
+  # Logging
+  LOG_FORMAT: "%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(pathname)s:%(lineno)d"
+  LOG_FILE: "/app/logs/askrag.log"
+  LOG_MAX_BYTES: "104857600"
+  LOG_BACKUP_COUNT: "20"
+  
+  # Health Check
+  HEALTH_CHECK_INTERVAL: "30"
+  HEALTH_CHECK_TIMEOUT: "10"
+  
+  # Feature Flags
+  ENABLE_CHAT: "True"
+  ENABLE_DOCUMENT_UPLOAD: "True"
+  ENABLE_VECTOR_SEARCH: "True"
+  ENABLE_USER_REGISTRATION: "True"
+  ENABLE_ADMIN_PANEL: "True"
+  
+  # Monitoring
+  ENABLE_METRICS: "True"
+  METRICS_PORT: "9090"
+  PROMETHEUS_METRICS: "True"
+  
+  # Email Configuration
+  SMTP_PORT: "587"
+  
+  # SSL & Security
+  SSL_VERIFY: "True"
+  SECURE_SSL_REDIRECT: "True"
+  SECURE_HSTS_SECONDS: "31536000"
+  SECURE_CONTENT_TYPE_NOSNIFF: "True"
+  SECURE_BROWSER_XSS_FILTER: "True"
+  
+  # Performance
+  WORKER_CONNECTIONS: "1000"
+  WORKER_TIMEOUT: "30"
+  KEEP_ALIVE: "2"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: askrag-frontend-config
+  namespace: askrag-production
+data:
+  # API Configuration
+  VITE_API_BASE_URL: "https://api.askrag.yourdomain.com"
+  VITE_API_VERSION: "v1"
+  
+  # Application Settings
+  VITE_APP_NAME: "AskRAG"
+  VITE_APP_VERSION: "1.0.0"
+  VITE_APP_DESCRIPTION: "RAG Application for Document Search and Chat"
+  
+  # File Upload
+  VITE_MAX_FILE_SIZE: "10485760"
+  VITE_ALLOWED_FILE_TYPES: ".pdf,.txt,.docx,.md,.rtf"
+  VITE_MAX_FILES_UPLOAD: "3"
+  
+  # Chat Configuration
+  VITE_MAX_MESSAGE_LENGTH: "2000"
+  VITE_CHAT_HISTORY_LIMIT: "50"
+  VITE_TYPING_DELAY: "300"
+  
+  # Feature Flags
+  VITE_ENABLE_DARK_MODE: "true"
+  VITE_ENABLE_FILE_UPLOAD: "true"
+  VITE_ENABLE_CHAT: "true"
+  VITE_ENABLE_DOCUMENT_SEARCH: "true"
+  VITE_ENABLE_USER_SETTINGS: "true"
+  VITE_ENABLE_DEBUG_MODE: "false"
+  
+  # UI Configuration
+  VITE_DEFAULT_THEME: "light"
+  VITE_SIDEBAR_DEFAULT_OPEN: "false"
+  VITE_ANIMATIONS_ENABLED: "true"
+  
+  # Development Tools
+  VITE_SHOW_DEV_TOOLS: "false"
+  VITE_MOCK_API: "false"

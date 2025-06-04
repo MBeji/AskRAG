@@ -1,0 +1,175 @@
+{
+  "timestamp": "2025-06-04T13:25:22.526Z",
+  "summary": {
+    "total": 27,
+    "success": 8,
+    "errors": 3,
+    "warnings": 1
+  },
+  "results": [
+    {
+      "timestamp": "2025-06-04T13:25:22.201Z",
+      "status": "SECTION",
+      "message": "🚀 Starting Complete Frontend-Backend Integration Tests"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.201Z",
+      "status": "SECTION",
+      "message": "=== BACKEND CONNECTIVITY TESTS ==="
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.202Z",
+      "status": "TEST",
+      "message": "Testing Backend Root: http://localhost:8003/"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.229Z",
+      "status": "SUCCESS",
+      "message": "Backend Root - Status: 200 OK"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.232Z",
+      "status": "INFO",
+      "message": "Backend Message: AskRAG Document Ingestion API is running"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.232Z",
+      "status": "SECTION",
+      "message": "=== FRONTEND CONNECTIVITY TESTS ==="
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.233Z",
+      "status": "TEST",
+      "message": "Testing Frontend Root: http://localhost:5173"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.238Z",
+      "status": "SUCCESS",
+      "message": "Frontend Root - Status: 200 OK"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.238Z",
+      "status": "ERROR",
+      "message": "Frontend Root - Network Error: body used already for: http://localhost:5173/"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.239Z",
+      "status": "ERROR",
+      "message": "Frontend is not accessible! Check if npm run dev is running on port 5173"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.239Z",
+      "status": "SECTION",
+      "message": "=== FRONTEND CONFIGURATION TESTS ==="
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.240Z",
+      "status": "INFO",
+      "message": "Frontend API URL configured: http://localhost:8003"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.240Z",
+      "status": "SUCCESS",
+      "message": "Frontend API URL correctly points to backend!"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.240Z",
+      "status": "SECTION",
+      "message": "=== CORS CONFIGURATION TESTS ==="
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.240Z",
+      "status": "TEST",
+      "message": "Testing CORS Preflight: http://localhost:8003/api/v1/auth/login"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.243Z",
+      "status": "SUCCESS",
+      "message": "CORS Preflight - Status: 200 OK"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.244Z",
+      "status": "ERROR",
+      "message": "CORS Preflight - Network Error: body used already for: http://localhost:8003/api/v1/auth/login"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.244Z",
+      "status": "WARNING",
+      "message": "CORS preflight failed - this may cause frontend issues"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.245Z",
+      "status": "SECTION",
+      "message": "=== BACKEND AUTHENTICATION TESTS ==="
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.245Z",
+      "status": "TEST",
+      "message": "Testing Backend Login: http://localhost:8003/api/v1/auth/login"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.520Z",
+      "status": "SUCCESS",
+      "message": "Backend Login - Status: 200 OK"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.521Z",
+      "status": "SUCCESS",
+      "message": "Login successful! Token received."
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.521Z",
+      "status": "INFO",
+      "message": "User: integration@test.com (ID: users_000004)"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.521Z",
+      "status": "TEST",
+      "message": "Testing Protected Endpoint: http://localhost:8003/api/v1/auth/me"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.525Z",
+      "status": "SUCCESS",
+      "message": "Protected Endpoint - Status: 200 OK"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.525Z",
+      "status": "SUCCESS",
+      "message": "Protected endpoint accessible!"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.526Z",
+      "status": "SECTION",
+      "message": "=== INTEGRATION TEST REPORT ==="
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.526Z",
+      "status": "INFO",
+      "message": "Total Tests: 27"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.526Z",
+      "status": "SUCCESS",
+      "message": "Successful: 8"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.526Z",
+      "status": "ERROR",
+      "message": "Errors: 3"
+    },
+    {
+      "timestamp": "2025-06-04T13:25:22.526Z",
+      "status": "WARNING",
+      "message": "Warnings: 1"
+    }
+  ],
+  "recommendations": [
+    "Fix critical errors before proceeding with frontend testing",
+    "Backend authentication is working - proceed with frontend UI testing",
+    "Test login/logout flow in the React application",
+    "Test protected routes and token refresh",
+    "Open http://localhost:5173/login and test manual login",
+    "Check browser console for any JavaScript errors",
+    "Verify React AuthContext is properly managing authentication state"
+  ]
+}

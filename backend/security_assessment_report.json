@@ -1,0 +1,77 @@
+{
+  "timestamp": "2025-06-03T09:33:26.320483",
+  "security_score": 100,
+  "score_status": "EXCELLENT",
+  "vulnerabilities": [],
+  "test_results": {
+    "authentication_security": [
+      {
+        "test": "JWT Implementation",
+        "status": "PASS",
+        "details": "JWT token generation and validation implemented"
+      },
+      {
+        "test": "Password Hashing",
+        "status": "PASS",
+        "details": "Secure password hashing implemented"
+      }
+    ],
+    "authorization_controls": [
+      {
+        "test": "Dependency Injection",
+        "status": "PASS",
+        "details": "FastAPI dependency injection for auth"
+      }
+    ],
+    "input_validation": [
+      {
+        "test": "Pydantic Schemas",
+        "status": "PASS",
+        "details": "Found 1 schema files for validation"
+      }
+    ],
+    "injection_protection": [],
+    "cors_configuration": [
+      {
+        "test": "CORS Configuration",
+        "status": "PASS",
+        "details": "CORS middleware properly configured"
+      }
+    ],
+    "security_headers": [
+      {
+        "test": "Security Headers",
+        "status": "PASS",
+        "details": "Found 5/5 security headers"
+      }
+    ],
+    "password_security": [
+      {
+        "test": "Password Hashing",
+        "status": "PASS",
+        "details": "bcrypt used for secure password hashing"
+      }
+    ],
+    "token_security": [],
+    "session_management": [
+      {
+        "test": "Refresh Tokens",
+        "status": "PASS",
+        "details": "Refresh token mechanism implemented"
+      }
+    ],
+    "configuration_security": [
+      {
+        "test": "Environment Variables",
+        "status": "PASS",
+        "details": "Environment-based configuration with 4 files"
+      }
+    ]
+  },
+  "summary": {
+    "total_vulnerabilities": 0,
+    "vulnerability_breakdown": {},
+    "categories_tested": 10,
+    "total_tests": 9
+  }
+}

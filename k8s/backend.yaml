@@ -1,0 +1,169 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: askrag-backend
+  namespace: askrag-production
+  labels:
+    app: askrag-backend
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: askrag-backend
+  template:
+    metadata:
+      labels:
+        app: askrag-backend
+        tier: backend
+    spec:
+      containers:
+      - name: backend
+        image: askrag/backend:latest
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef:
+            name: askrag-backend-config
+        env:
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: SECRET_KEY
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: JWT_SECRET_KEY
+        - name: MONGODB_URL
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: MONGODB_URL
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: OPENAI_API_KEY
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: REDIS_URL
+        - name: CORS_ORIGINS
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: CORS_ORIGINS
+        - name: SENTRY_DSN
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: SENTRY_DSN
+        - name: DATADOG_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: DATADOG_API_KEY
+        - name: SMTP_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: SMTP_USERNAME
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: SMTP_PASSWORD
+        - name: FROM_EMAIL
+          valueFrom:
+            secretKeyRef:
+              name: askrag-secrets
+              key: FROM_EMAIL
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/uploads
+        - name: faiss-data
+          mountPath: /app/data/faiss_index
+        - name: logs
+          mountPath: /app/logs
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+      volumes:
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: backend-uploads
+      - name: faiss-data
+        persistentVolumeClaim:
+          claimName: backend-faiss-data
+      - name: logs
+        persistentVolumeClaim:
+          claimName: backend-logs
+      imagePullSecrets:
+      - name: registry-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: askrag-production
+  labels:
+    app: askrag-backend
+spec:
+  selector:
+    app: askrag-backend
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: askrag-backend-hpa
+  namespace: askrag-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: askrag-backend
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80

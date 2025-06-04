@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Environnements
+.env
+.env.*
+
+# Uploads et données temporaires
+uploads/
+*.sqlite3
+
+# Autres
+.DS_Store

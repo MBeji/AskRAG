@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: askrag-production
+  labels:
+    name: askrag-production
+    environment: production
+    version: "1.0.0"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: askrag-staging
+  labels:
+    name: askrag-staging
+    environment: staging
+    version: "1.0.0"

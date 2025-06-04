@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend-Backend Integration Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        #results { margin-top: 20px; }
+        input { padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>🚀 AskRAG Frontend-Backend Integration Test</h1>
+    
+    <div class="test-section info">
+        <h3>Configuration</h3>
+        <p><strong>Frontend URL:</strong> http://localhost:5173</p>
+        <p><strong>Backend URL:</strong> http://localhost:8003</p>
+        <p><strong>Test User:</strong> integration@test.com</p>
+    </div>
+
+    <div class="test-section">
+        <h3>🧪 Quick Tests</h3>
+        <button onclick="testBackendConnection()">Test Backend Connection</button>
+        <button onclick="testUserLogin()">Test User Login</button>
+        <button onclick="testProtectedEndpoint()">Test Protected Endpoint</button>
+        <button onclick="testRegisterNewUser()">Test Register New User</button>
+    </div>
+
+    <div class="test-section">
+        <h3>🔐 Manual Login Test</h3>
+        <div>
+            <input type="email" id="email" placeholder="Email" value="integration@test.com">
+            <input type="password" id="password" placeholder="Password" value="TestPassword123!">
+            <button onclick="manualLogin()">Login</button>
+        </div>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const BACKEND_URL = 'http://localhost:8003';
+        let authToken = null;
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-section ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong>: ${message}`;
+            results.appendChild(div);
+            console.log(message);
+        }
+
+        async function testBackendConnection() {
+            log('🔍 Testing backend connection...', 'info');
+            try {
+                const response = await fetch(`${BACKEND_URL}/`);
+                const data = await response.json();
+                log(`✅ Backend connected: ${data.message}`, 'success');
+            } catch (error) {
+                log(`❌ Backend connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testUserLogin() {
+            log('🔐 Testing user login...', 'info');
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'integration@test.com',
+                        password: 'TestPassword123!'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    log(`✅ Login successful! Token: ${data.access_token.substring(0, 20)}...`, 'success');
+                    log(`👤 User: ${data.user.email} (ID: ${data.user.id})`, 'success');
+                } else {
+                    const error = await response.text();
+                    log(`❌ Login failed: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Login error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testProtectedEndpoint() {
+            if (!authToken) {
+                log('❌ No auth token available. Please login first.', 'error');
+                return;
+            }
+            
+            log('🛡️ Testing protected endpoint...', 'info');
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/v1/auth/me`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Protected endpoint accessible: ${JSON.stringify(data)}`, 'success');
+                } else {
+                    const error = await response.text();
+                    log(`❌ Protected endpoint failed: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Protected endpoint error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testRegisterNewUser() {
+            const timestamp = Date.now();
+            const email = `test${timestamp}@example.com`;
+            
+            log(`👤 Testing user registration with email: ${email}`, 'info');
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/v1/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email,
+                        password: 'TestPassword123!',
+                        full_name: `Test User ${timestamp}`
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log(`✅ Registration successful! User ID: ${data.id}`, 'success');
+                } else {
+                    const error = await response.text();
+                    log(`❌ Registration failed: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Registration error: ${error.message}`, 'error');
+            }
+        }
+
+        async function manualLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            log(`🔐 Manual login attempt for: ${email}`, 'info');
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    log(`✅ Manual login successful!`, 'success');
+                    log(`👤 Welcome ${data.user.full_name || data.user.email}!`, 'success');
+                } else {
+                    const error = await response.text();
+                    log(`❌ Manual login failed: ${response.status} - ${error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Manual login error: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-run connection test on page load
+        window.onload = () => {
+            log('🚀 Starting integration tests...', 'info');
+            testBackendConnection();
+        };
+    </script>
+</body>
+</html>
