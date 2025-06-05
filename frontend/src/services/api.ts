@@ -139,4 +139,36 @@ export const updateSettings = async (settings: any) => {
   return response.data;
 };
 
+// RAG / Ask endpoint function (Step 18, updated for Step 21)
+import {
+  RAGQueryResponse,
+  ChatSessionListItem,
+  ChatSession,
+  // SearchResultItem // No longer defined here, should be imported from types/index.ts if needed directly
+} from '../types'; // Assuming types are now in ../types
+
+export const askRAG = async (query: string, sessionId?: string | null): Promise<RAGQueryResponse> => {
+  const payload: { query: string; session_id?: string } = { query };
+  if (sessionId) {
+    payload.session_id = sessionId;
+  }
+  const response = await api.post<RAGQueryResponse>('/rag/ask', payload);
+  return response.data;
+};
+
+// Chat History API functions (Step 21)
+export const getChatSessions = async (): Promise<ChatSessionListItem[]> => {
+  const response = await api.get<ChatSessionListItem[]>('/chat/sessions');
+  return response.data;
+};
+
+export const getChatSession = async (sessionId: string): Promise<ChatSession> => {
+  const response = await api.get<ChatSession>(`/chat/sessions/${sessionId}`);
+  return response.data;
+};
+
+// Note: POST to /chat/sessions/{session_id}/messages is not explicitly needed here
+// if all user messages go through /rag/ask which then handles session management.
+// If a separate "send message to existing chat without RAG response" is needed, it would be added.
+
 export default api;

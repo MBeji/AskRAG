@@ -27,13 +27,12 @@ from app.schemas.rag import (
     DocumentSearchRequest, # Use this for /search endpoint
     SearchResultItem,      # Use this for search result items
     RAGQueryRequest,       # Use this for /ask endpoint
-    QueryResponse,         # Use this for /ask endpoint response
-    DocumentUploadResponse,# Keep for existing /upload endpoint
-    ChatMessage,           # Keep for existing history endpoints
-    ChatSession,           # Keep for existing session endpoints
-    # RAGQueryResponse as OldRAGQueryResponse # If needed to distinguish from new QueryResponse
+    QueryResponse,
+    DocumentUploadResponse,
+    ChatMessage, # Assuming these are the Pydantic schemas from schemas/rag.py
+    ChatSession, # for the old endpoints, not Beanie models.
 )
-# Other Pydantic models if used by remaining old endpoints can be kept or managed separately.
+from app.services import chat_service # Import chat_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -72,31 +71,75 @@ async def search_documents_new(
 
 @router.post("/ask", response_model=QueryResponse)
 async def ask_question_with_llm(
-    query_request: RAGQueryRequest, # Use RAGQueryRequest from schemas/rag.py
+    query_request: RAGQueryRequest, # Uses updated RAGQueryRequest with optional session_id
     current_user: UserModel = Depends(get_current_active_user)
 ):
     """
-    Receives a query, performs semantic search, and generates an answer using LLM.
+    Receives a query, performs semantic search, generates an answer using LLM,
+    and logs the interaction in a chat session.
     """
     if not query_request.query.strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Query cannot be empty")
 
     try:
-        from app.services.rag_service import get_answer_from_llm # Import new service function
+        session_id_to_use = query_request.session_id
+
+        # 1. Create or update chat session with user's message
+        if session_id_to_use is None:
+            # Create new session, title can be first part of query or generic
+            session = await chat_service.create_chat_session(
+                user=current_user,
+                initial_message_text=query_request.query,
+                title=query_request.query[:50] + "..." if len(query_request.query) > 50 else query_request.query
+            )
+            session_id_to_use = session.id
+        else:
+            # Add user message to existing session
+            session = await chat_service.add_message_to_session(
+                session_id=session_id_to_use,
+                user=current_user,
+                sender="user",
+                text=query_request.query
+            )
+            if not session:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found or access denied.")
+
+        # 2. Get LLM answer and sources
+        from app.services.rag_service import get_answer_from_llm
+        llm_response_data = await get_answer_from_llm(query=query_request.query, user=current_user)
+
+        # 3. Add bot's message to session
+        if llm_response_data and llm_response_data.get("answer"):
+            await chat_service.add_message_to_session(
+                session_id=session_id_to_use, # type: ignore # PydanticObjectId from Beanie session.id
+                user=current_user, # For ownership check, though bot message isn't "by" user
+                sender="bot",
+                text=llm_response_data["answer"],
+                sources=llm_response_data["sources"]
+            )
+        else: # Handle case where LLM might not provide an answer but sources were found
+            await chat_service.add_message_to_session(
+                session_id=session_id_to_use, # type: ignore
+                user=current_user,
+                sender="bot",
+                text="No specific answer generated, but found relevant sources.", # Or some other placeholder
+                sources=llm_response_data.get("sources", [])
+            )
+            if "answer" not in llm_response_data: # Ensure answer key exists even if empty
+                 llm_response_data["answer"] = "No specific answer generated, but found relevant sources."
+
+
+        return QueryResponse(
+            answer=llm_response_data["answer"],
+            sources=llm_response_data["sources"],
+            session_id=session_id_to_use # type: ignore
+        )
         
-        result = await get_answer_from_llm(query=query_request.query, user=current_user)
-        
-        # Ensure the result from get_answer_from_llm matches QueryResponse structure.
-        # get_answer_from_llm returns {"answer": str, "sources": List[Dict_matching_SearchResultItem]}
-        # This should be directly compatible if SearchResultItem is correctly defined and used by get_answer_from_llm.
-        return result
-        
-    except RuntimeError as e: # Catch specific error from service if a sub-service (LLM, vector store) is down
+    except RuntimeError as e:
         logger.error(f"RAG query runtime error for query '{query_request.query}': {e}")
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except Exception as e:
         logger.error(f"Error during RAG query for '{query_request.query}': {e}")
-        # Consider logging the full stack trace for e in development/debug mode
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error processing your query.")
 
 # Keep the rest of the file (chat history, sessions, etc.) as is for now.

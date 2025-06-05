@@ -98,6 +98,16 @@ TEXT_CHUNK_OVERLAP=200   # Chevauchement des chunks
 FAISS_INDEX_PATH=faiss_indexes/askrag.index # Chemin de stockage de l'index FAISS
 FAISS_INDEX_DIMENSION=1536 # Dimension des embeddings (doit correspondre au modèle utilisé)
 
+# RAG Parameters (Backend Configuration)
+# Note: The frontend Settings page may display UI for these, but they are currently
+# configured via environment variables on the backend. UI settings are for client-side
+# reference or future features and do not override backend behavior at this time.
+SEARCH_TOP_K=5           # Nombre de chunks pertinents à récupérer
+LLM_MODEL_NAME=gpt-3.5-turbo # Modèle LLM pour la génération de réponses
+MAX_CONTEXT_TOKENS=3000  # Limite de tokens pour le contexte LLM
+LLM_TEMPERATURE=0.7      # Température pour la génération LLM
+LLM_MAX_OUTPUT_TOKENS=500 # Limite de tokens pour la réponse LLM
+
 # CORS (liste séparée par des virgules ou chaîne JSON)
 BACKEND_CORS_ORIGINS_STR="http://localhost:3000,http://localhost:5173"
 

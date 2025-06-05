@@ -57,28 +57,52 @@ export interface PasswordReset {
   newPassword: string;
 }
 
-// Chat types
-export interface ChatMessage {
+// Chat types (Updated for Step 21 to match backend schemas)
+
+// This SearchResultItem should match what's returned by the backend's /rag/search
+// and used in QueryResponse sources. It's also used by ChatMessage sources.
+export interface SearchResultItem {
+  document_id: string;
+  chunk_index: number;
+  chunk_text: string;
+  source_filename: string;
+  score?: number;
+  upload_date?: string; // ISO string date
+}
+
+export interface ChatMessage { // Corresponds to backend ChatMessageResponse
+  message_id: string;
+  sender: 'user' | 'bot'; // Was 'type' before, standardizing to 'sender'
+  text: string;           // Was 'content' before, standardizing to 'text'
+  timestamp: string;      // ISO string date
+  sources?: SearchResultItem[];
+}
+
+export interface ChatSession { // Corresponds to backend ChatSessionResponse
   id: string;
-  type: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-  sources?: DocumentSource[];
+  user_id: string;
+  title?: string | null;
+  created_at: string;     // ISO string date
+  updated_at: string;     // ISO string date
+  messages: ChatMessage[];
 }
 
-export interface DocumentSource {
-  documentId: string;
-  documentName: string;
-  chunk: string;
-  similarity: number;
-  page?: number;
+export interface ChatSessionListItem { // Corresponds to backend ChatSessionListItem
+  id: string;
+  user_id: string;
+  title?: string | null;
+  created_at: string;     // ISO string date
+  updated_at: string;     // ISO string date
+  last_message_snippet?: string | null;
 }
 
-export interface ChatResponse {
-  message: ChatMessage;
-  sources: DocumentSource[];
-  processingTime: number;
+// RAG Query Response from Step 18, now including session_id
+export interface RAGQueryResponse {
+  answer: string;
+  sources: SearchResultItem[];
+  session_id: string; // session_id is PydanticObjectId on backend, string here
 }
+
 
 // Settings types
 export interface AppSettings {
