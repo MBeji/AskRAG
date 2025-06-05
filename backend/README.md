@@ -71,9 +71,22 @@ Un endpoint de recherche sémantique est disponible sous `/api/v1/rag`:
   - Response: Liste de chunks pertinents avec leur contenu, score, et métadonnées du document source.
   - Nécessite un token d'accès. Le nombre de résultats (`k`) est configurable via `SEARCH_TOP_K`.
 - **POST /api/v1/rag/ask**: Pose une question sur les documents téléversés et obtient une réponse générée par un LLM basé sur le contexte trouvé.
-  - Request Body: `{"query": "votre question ici"}`
-  - Response: `{"answer": "Réponse générée...", "sources": [liste des chunks sources]}`.
-  - Nécessite un token d'accès. Utilise les configurations `LLM_MODEL_NAME`, `MAX_CONTEXT_TOKENS`, etc.
+  - Request Body: `{"query": "votre question ici", "session_id": "optional_session_id"}`
+  - Response: `{"answer": "Réponse générée...", "sources": [liste des chunks sources], "session_id": "id_de_session"}`.
+  - Nécessite un token d'accès. Gère la session de chat (crée ou utilise existante) et sauvegarde les messages utilisateur et bot.
+
+### Sessions de Chat
+Endpoints pour gérer les sessions de chat sous `/api/v1/chat`:
+- **POST /sessions**: Crée une nouvelle session de chat.
+  - Request Body (optionnel): `{"title": "Titre de la session"}`
+  - Response: Détails de la session créée, incluant son ID.
+- **GET /sessions**: Liste les sessions de chat de l'utilisateur.
+  - Response: Liste des sessions avec titre, dates, et snippet du dernier message.
+- **GET /sessions/{session_id}**: Récupère une session spécifique avec tous ses messages.
+  - Response: Détails de la session et liste des messages.
+- **POST /sessions/{session_id}/messages**: Ajoute un message utilisateur à une session existante (principalement utilisé par le frontend si la logique de chat est séparée de l'endpoint `/rag/ask`).
+  - Request Body: `{"text": "Message de l'utilisateur"}`
+  - Response: Le message créé.
 
 ### Rate Limiting
 L'API intègre un système de limitation de taux (rate limiting) pour prévenir les abus:

@@ -42,15 +42,28 @@ class SearchResultItem(BaseModel):
     upload_date: Optional[datetime] = Field(None, description="Upload date of the source document.")
 
     class Config:
-        from_attributes = True # If created from an ORM object later
-        # orm_mode = True # Pydantic v1
+        from_attributes = True
 
-class QueryResponse(BaseModel):
+
+# Extend RAGQueryRequest from Step 15 to include session_id for Step 21
+class RAGQueryRequest(BaseModel): # Was defined in endpoints/rag.py, standardizing here
+    query: str = Field(..., min_length=1, description="User query for RAG system.")
+    session_id: Optional[PydanticObjectId] = Field(None, description="Optional ID of an existing chat session.")
+    # max_chunks, temperature etc. from old RAGQueryRequest can be added back if needed for per-query override
+
+class QueryResponse(BaseModel): # Renamed from OldRAGQueryResponse for clarity
     """Schema for the response from the /ask endpoint."""
     answer: str = Field(..., description="LLM-generated answer.")
     sources: List[SearchResultItem] = Field(..., description="List of source chunks used for the answer.")
+    session_id: PydanticObjectId = Field(..., description="ID of the chat session this interaction belongs to.")
+
 
     class Config:
+        # PydanticObjectId needs arbitrary_types_allowed for direct use if not stringified first
+        arbitrary_types_allowed = True
+        json_encoders = {
+            PydanticObjectId: str # Ensure PydanticObjectId is serialized to string
+        }
         schema_extra = {
             "example": {
                 "answer": "The capital of France is Paris, based on the provided documents.",

@@ -1,114 +1,46 @@
-"""
-Chat models for managing chat sessions and messages
-"""
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
-from bson import ObjectId
+from pydantic import BaseModel, Field # BaseModel for EmbeddedDocument if not using Beanie's specific
+from beanie import Document, EmbeddedDocument, PydanticObjectId, Link # Link for potential User linking
 
+from app.models.user import User as UserModel # For type hinting if using Link
+from app.schemas.rag import SearchResultItem # For typing sources, if defined there
 
-class PyObjectId(ObjectId):
-    """Custom ObjectId type for Pydantic v2"""
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+# If SearchResultItem is not yet in schemas.rag, define a placeholder or use Dict
+# For now, assume SearchResultItem or a similar structure will be used for sources.
+# Using Dict[str, Any] for sources for now to keep it simple if SearchResultItem is not ready.
 
-    @classmethod
-    def validate(cls, v):
-        if not ObjectId.is_valid(v):
-            raise ValueError('Invalid ObjectId')
-        return ObjectId(v)
-
-    @classmethod
-    def __get_pydantic_json_schema__(cls, field_schema):
-        field_schema.update(type='string')
-        return field_schema
-
-
-class ChatMessage(BaseModel):
-    """Individual chat message"""
-    id: str = Field(..., description="Unique message ID")
-    role: str = Field(..., description="user, assistant, or system")
-    content: str = Field(..., description="Message content")
+class ChatMessage(EmbeddedDocument): # Use EmbeddedDocument for sub-documents in a list
+    message_id: PydanticObjectId = Field(default_factory=PydanticObjectId)
+    sender: str # e.g., "user", "bot"
+    text: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-    
-    # RAG context
-    sources: List[Dict[str, Any]] = Field(default_factory=list, description="Source documents used")
-    confidence_score: Optional[float] = Field(None, description="Response confidence score")
-    
-    # Metadata
-    token_count: Optional[int] = Field(None, description="Token count for this message")
-    processing_time: Optional[float] = Field(None, description="Processing time in seconds")
-    model_used: Optional[str] = Field(None, description="AI model used for response")
+    # sources: Optional[List[SearchResultItem]] = None # If using the Pydantic model from schemas.rag
+    sources: Optional[List[Dict[str, Any]]] = None # Store relevant source chunks for bot messages
 
+    class Settings:
+        # Settings for embedded documents if needed, usually not required for basic embedding
+        pass
 
-class ChatSession(BaseModel):
-    """Chat session model"""
-    id: Optional[PyObjectId] = Field(alias="_id", default=None)
-    title: str = Field(..., description="Session title")
-    user_id: str = Field(..., description="User who owns the session")
-    
-    # Messages
-    messages: List[ChatMessage] = Field(default_factory=list, description="Chat messages")
-    message_count: int = Field(default=0, description="Total message count")
-      # Session metadata
+class ChatSession(Document):
+    # user_id: Link[UserModel] # Example if linking directly to User document (causes population)
+    user_id: PydanticObjectId # Store as PydanticObjectId, assuming it's the User's _id
+    title: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    is_active: bool = Field(default=True, description="Session status")
-    
-    # RAG settings used in this session
-    rag_settings: Dict[str, Any] = Field(default_factory=dict, description="RAG configuration")
-    
-    # Usage stats
-    total_tokens: int = Field(default=0, description="Total tokens used")
-    total_cost: float = Field(default=0.0, description="Total cost in USD")
-    
-    class Config:
-        populate_by_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    updated_at: datetime = Field(default_factory=datetime.utcnow) # Should be updated on new messages
+    messages: List[ChatMessage] = Field(default_factory=list)
 
+    class Settings:
+        name = "chat_sessions" # MongoDB collection name
+        # Example: indexes = [
+        #     [("user_id", pymongo.ASCENDING), ("updated_at", pymongo.DESCENDING)],
+        # ]
+        # Keep_nulls = False # Beanie setting to not store fields with None value (if desired)
 
-class ChatSessionCreate(BaseModel):
-    """Schema for creating a new chat session"""
-    title: str
-    user_id: str
-    rag_settings: Dict[str, Any] = Field(default_factory=dict)
+    # Method to update timestamp on modification
+    async def save(self, *args, **kwargs):
+        self.updated_at = datetime.utcnow()
+        await super().save(*args, **kwargs)
 
-
-class MessageCreate(BaseModel):
-    """Schema for creating a new message"""
-    content: str
-    role: str = Field(default="user", description="user, assistant, or system")
-
-
-class ChatSessionResponse(BaseModel):
-    """Schema for chat session API responses"""
-    id: str
-    title: str
-    user_id: str
-    message_count: int
-    created_at: datetime
-    updated_at: datetime
-    is_active: bool
-    total_tokens: int
-    total_cost: float
-
-
-class ChatMessageResponse(BaseModel):
-    """Schema for chat message API responses"""
-    id: str
-    role: str
-    content: str
-    timestamp: datetime
-    sources: List[Dict[str, Any]]
-    confidence_score: Optional[float]
-    token_count: Optional[int]
-    processing_time: Optional[float]
-    model_used: Optional[str]
-
-
-class ChatHistoryResponse(BaseModel):
-    """Schema for chat history responses"""
-    session: ChatSessionResponse
-    messages: List[ChatMessageResponse]
+# Note: Pydantic schemas for API request/response (like ChatMessageResponse, ChatSessionResponse)
+# should go into app/schemas/chat.py as per Step 21.3.

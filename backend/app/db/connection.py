@@ -41,6 +41,7 @@ async def init_db():
         document_models=[
             User,
             DocModel,
+            "app.models.chat.ChatSession", # Use string path for models to avoid circular imports at init
             # Add other Beanie Document models here as they are created
         ]
     )
