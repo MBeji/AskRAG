@@ -18,6 +18,7 @@ npm-debug.log*
 # Uploads et données temporaires
 uploads/
 *.sqlite3
+faiss_indexes/
 
 # Autres
 .DS_Store

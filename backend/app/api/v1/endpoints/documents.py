@@ -1,149 +1,94 @@
-"""
-Document management endpoints
-"""
-from typing import List
-from fastapi import APIRouter, HTTPException, Depends
-from app.models.document import Document, DocumentCreate, DocumentUpdate, DocumentResponse
-from app.db.repositories.mock_repositories import get_mock_document_repository
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from typing import List, Optional
+from beanie import PydanticObjectId # For type hinting doc_id in path
+
+from app.models.user import User as UserModel # Beanie User model
+from app.models.document import Document as DocumentModel # Beanie Document model
+from app.schemas.document import DocumentOut # Pydantic schema for responses
+from app.services.auth_service import get_current_active_user
+from app.services.document_service import (
+    save_uploaded_file,
+    list_documents_for_user,
+    get_document_by_id
+)
 
 router = APIRouter()
 
-@router.post("/", response_model=DocumentResponse)
-async def create_document(
-    document: DocumentCreate,
-    doc_repo = Depends(get_mock_document_repository)
+@router.post("/upload", response_model=DocumentOut, status_code=status.HTTP_201_CREATED)
+async def upload_new_document(
+    file: UploadFile = File(...),
+    current_user: UserModel = Depends(get_current_active_user)
 ):
-    """Create a new document"""
+    """
+    Upload a new document.
+    The file will be saved, and its metadata stored in the database.
+    """
     try:
-        created_doc = await doc_repo.create(document)
-        return DocumentResponse(
-            id=str(created_doc.id),
-            filename=created_doc.filename,
-            title=created_doc.title,
-            file_type=created_doc.file_type,
-            file_size=created_doc.file_size,
-            upload_date=created_doc.upload_date,
-            user_id=created_doc.user_id,
-            chunk_count=created_doc.chunk_count,
-            processing_status=created_doc.processing_status,
-            tags=created_doc.tags,
-            metadata=created_doc.metadata
-        )
+        document_db = await save_uploaded_file(file=file, uploader=current_user)
+        # Convert DocumentModel (Beanie) to DocumentOut (Pydantic schema) for response
+        return DocumentOut.model_validate(document_db) # Pydantic v2
+    except HTTPException as e:
+        # Re-raise HTTPExceptions (e.g., from file validation)
+        raise e
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Catch any other errors during file processing
+        # Log the error e for debugging
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while processing the file: {str(e)}"
+        )
 
-@router.get("/", response_model=List[DocumentResponse])
-async def list_documents(
-    skip: int = 0,
-    limit: int = 100,
-    user_id: str = None,
-    doc_repo = Depends(get_mock_document_repository)
+@router.get("/", response_model=List[DocumentOut])
+async def get_user_documents(
+    current_user: UserModel = Depends(get_current_active_user)
 ):
-    """List documents"""
-    if user_id:
-        documents = await doc_repo.get_by_user(user_id, skip=skip, limit=limit)
-    else:
-        documents = await doc_repo.list(skip=skip, limit=limit)
+    """
+    List all documents uploaded by the current user.
+    """
+    documents_db = await list_documents_for_user(user=current_user)
+    # Convert list of DocumentModel to list of DocumentOut
+    return [DocumentOut.model_validate(doc) for doc in documents_db]
+
+@router.get("/{doc_id}", response_model=DocumentOut)
+async def get_specific_document(
+    doc_id: PydanticObjectId, # Use PydanticObjectId for path param validation/conversion
+    current_user: UserModel = Depends(get_current_active_user)
+):
+    """
+    Get a specific document by its ID.
+    Ensures the document belongs to the current user.
+    """
+    document_db = await get_document_by_id(doc_id=doc_id, user=current_user)
+    if not document_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found or you do not have permission to access it."
+        )
+    return DocumentOut.model_validate(document_db)
+
+# Optional: Add a delete endpoint as per common CRUD operations
+# @router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+# async def delete_user_document(
+#     doc_id: PydanticObjectId,
+#     current_user: UserModel = Depends(get_current_active_user)
+# ):
+#     """
+#     Delete a specific document by its ID.
+#     Ensures the document belongs to the current user.
+#     """
+#     document = await get_document_by_id(doc_id=doc_id, user=current_user)
+#     if not document:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Document not found or you do not have permission to delete it."
+#         )
     
-    return [
-        DocumentResponse(
-            id=str(doc.id),
-            filename=doc.filename,
-            title=doc.title,
-            file_type=doc.file_type,
-            file_size=doc.file_size,
-            upload_date=doc.upload_date,
-            user_id=doc.user_id,
-            chunk_count=doc.chunk_count,
-            processing_status=doc.processing_status,
-            tags=doc.tags,
-            metadata=doc.metadata
-        ) for doc in documents
-    ]
-
-@router.get("/{document_id}", response_model=DocumentResponse)
-async def get_document(
-    document_id: str,
-    doc_repo = Depends(get_mock_document_repository)
-):
-    """Get a specific document"""
-    document = await doc_repo.get_by_id(document_id)
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
+#     # Delete from DB (Beanie)
+#     await document.delete()
     
-    return DocumentResponse(
-        id=str(document.id),
-        filename=document.filename,
-        title=document.title,
-        file_type=document.file_type,
-        file_size=document.file_size,
-        upload_date=document.upload_date,
-        user_id=document.user_id,
-        chunk_count=document.chunk_count,
-        processing_status=document.processing_status,
-        tags=document.tags,
-        metadata=document.metadata
-    )
+#     # Delete file from filesystem (add this to document_service if not there)
+#     # from app.services.document_service import delete_physical_file
+#     # if document.file_path:
+#     #     await delete_physical_file(document.file_path)
 
-@router.put("/{document_id}", response_model=DocumentResponse)
-async def update_document(
-    document_id: str,
-    document_update: DocumentUpdate,
-    doc_repo = Depends(get_mock_document_repository)
-):
-    """Update a document"""
-    document = await doc_repo.update(document_id, document_update)
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    return DocumentResponse(
-        id=str(document.id),
-        filename=document.filename,
-        title=document.title,
-        file_type=document.file_type,
-        file_size=document.file_size,
-        upload_date=document.upload_date,
-        user_id=document.user_id,
-        chunk_count=document.chunk_count,
-        processing_status=document.processing_status,
-        tags=document.tags,
-        metadata=document.metadata
-    )
-
-@router.delete("/{document_id}")
-async def delete_document(
-    document_id: str,
-    doc_repo = Depends(get_mock_document_repository)
-):
-    """Delete a document"""
-    success = await doc_repo.delete(document_id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return {"message": "Document deleted successfully"}
-
-@router.get("/{document_id}/search")
-async def search_document(
-    document_id: str,
-    query: str,
-    doc_repo = Depends(get_mock_document_repository)
-):
-    """Search within a specific document"""
-    document = await doc_repo.get_by_id(document_id)
-    if not document:
-        raise HTTPException(status_code=404, detail="Document not found")
-    
-    # Simple text search in content
-    if query.lower() in document.content.lower():
-        return {
-            "document_id": document_id,
-            "query": query,
-            "found": True,
-            "content_preview": document.content[:200] + "..."
-        }
-    else:
-        return {
-            "document_id": document_id,
-            "query": query,
-            "found": False,
-            "content_preview": None
-        }
+#     return Response(status_code=status.HTTP_204_NO_CONTENT)

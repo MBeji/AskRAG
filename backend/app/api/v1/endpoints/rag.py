@@ -13,227 +13,96 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 
-from app.core.auth import get_current_user
-from app.models.user import User
+from app.models.user import User as UserModel # Use the Beanie User model
+from app.services.auth_service import get_current_active_user # Use new auth dependency
+from app.services.rag_service import semantic_search_in_documents # New service function
+# Remove unused imports if they are specific to old logic
+# from app.core.auth import get_current_user # Old
+# from app.schemas.rag import SearchResult # Old SearchResult, will redefine or use new
+# from app.core.rag_service import rag_service # Old RAGService class instance
+# from app.core.rag_pipeline import rag_pipeline # Old pipeline
+# from app.db.mock_database import get_mock_database # Not using mock DB for this
+
 from app.schemas.rag import (
-    RAGQueryRequest, RAGQueryResponse, 
-    DocumentUploadResponse, SearchResult,
-    ChatSession, ChatMessage
+    DocumentSearchRequest, # Use this for /search endpoint
+    SearchResultItem,      # Use this for search result items
+    RAGQueryRequest,       # Use this for /ask endpoint
+    QueryResponse,         # Use this for /ask endpoint response
+    DocumentUploadResponse,# Keep for existing /upload endpoint
+    ChatMessage,           # Keep for existing history endpoints
+    ChatSession,           # Keep for existing session endpoints
+    # RAGQueryResponse as OldRAGQueryResponse # If needed to distinguish from new QueryResponse
 )
-from app.core.rag_service import rag_service
-from app.core.rag_pipeline import rag_pipeline
-from app.core.vector_store import vector_store
-from app.db.mock_database import get_mock_database
+# Other Pydantic models if used by remaining old endpoints can be kept or managed separately.
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ===== ÉTAPE 15.4 : Pipeline RAG complet avec RAGService =====
+# NOTE: The "/upload" endpoint previously in this file has been removed.
+# Document uploads should be handled by the dedicated /api/v1/documents/upload endpoint,
+# which uses the new document processing pipeline (Steps 10-13).
 
-@router.post("/upload", response_model=DocumentUploadResponse)
-async def upload_document(
-    file: UploadFile = File(...),
-    title: Optional[str] = Form(None),
-    current_user: User = Depends(get_current_user)
-):
-    """
-    Upload et vectorise un document.
-    
-    Étapes :
-    1. Validation du fichier
-    2. Extraction du contenu
-    3. Chunking intelligent
-    4. Génération d'embeddings
-    5. Sauvegarde dans le vector store
-    """
-    try:
-        # Validation du fichier
-        if not file.filename:
-            raise HTTPException(status_code=400, detail="Nom de fichier requis")
-        
-        # Vérifier le type de fichier supporté
-        supported_types = ['.pdf', '.docx', '.txt', '.md', '.html']
-        file_ext = file.filename.lower().split('.')[-1]
-        if f'.{file_ext}' not in supported_types:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Type de fichier non supporté. Types acceptés: {supported_types}"
-            )
-
-        # Lire le contenu du fichier
-        content = await file.read()
-        
-        # Traitement avec le RAGService
-        result = rag_service.process_document(
-            file_content=content,
-            filename=file.filename,
-            user_id=str(current_user.id),
-            document_metadata={
-                'file_type': file_ext,
-                'title': title or file.filename,
-                'user_id': str(current_user.id)
-            }
-        )
-        
-        if not result.get('success'):
-            raise HTTPException(
-                status_code=500,
-                detail=f"Erreur de traitement: {result.get('error')}"
-            )
-        
-        # Sauvegarder les métadonnées en base
-        mock_db = get_mock_database()
-        doc_metadata = {
-            "filename": file.filename,
-            "title": title or file.filename,
-            "file_type": file_ext,
-            "user_id": str(current_user.id),
-            "chunks_count": result.get("chunking", {}).get("total_chunks", 0),
-            "document_id": result.get("document_id"),
-            "processing_time": result.get("processing_time", 0),
-            "status": "processed"
-        }
-        doc_id = mock_db.insert_one("documents", doc_metadata)
-        
-        logger.info(f"Document {file.filename} traité avec succès pour user {current_user.email}")
-        
-        return DocumentUploadResponse(
-            document_id=str(doc_id),
-            filename=file.filename,
-            title=title or file.filename,
-            chunks_count=result.get("chunking", {}).get("total_chunks", 0),
-            processing_time=result.get("processing_time", 0),
-            status="success",
-            message="Document vectorisé avec succès"
-        )
-        
-    except Exception as e:
-        logger.error(f"Erreur lors de l'upload du document {file.filename}: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur de traitement: {str(e)}")
-
-
-@router.post("/search", response_model=List[SearchResult])
-async def search_documents(
-    query: str,
-    limit: int = 5,
-    threshold: float = 0.7,
-    current_user: User = Depends(get_current_user)
+@router.post("/search", response_model=List[SearchResultItem])
+async def search_documents_new(
+    search_request: DocumentSearchRequest,
+    current_user: UserModel = Depends(get_current_active_user)
 ):
     """
     Recherche sémantique dans les documents de l'utilisateur.
+    Utilise le nouveau `semantic_search_in_documents` service.
     """
+    if not search_request.query.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Query cannot be empty")
+
     try:
-        if not query.strip():
-            raise HTTPException(status_code=400, detail="Requête vide")
-        
-        # Recherche sémantique
-        search_response = rag_pipeline.search(
-            query=query,
-            k=limit,
-            score_threshold=threshold,
-            filters={'user_id': str(current_user.id)}
+        # Note: semantic_search_in_documents currently only uses the query string and user.
+        # It does not yet use limit or threshold from DocumentSearchRequest.
+        # This could be an enhancement for semantic_search_in_documents.
+        search_results = await semantic_search_in_documents(
+            query=search_request.query,
+            user=current_user
         )
-        
-        if not search_response.get('success'):
-            raise HTTPException(
-                status_code=500,
-                detail=f"Erreur de recherche: {search_response.get('error')}"
-            )
-        
-        results = search_response.get('results', [])
-        
-        logger.info(f"Recherche '{query}' - {len(results)} résultats pour user {current_user.email}")
-        
-        return [
-            SearchResult(
-                chunk_id=result['metadata'].get('chunk_id', f'chunk_{i}'),
-                content=result['content'],
-                score=result['score'],
-                metadata=result.get('metadata', {}),
-                document_title=result['metadata'].get('filename', 'Document'),
-                page_number=result['metadata'].get('page_number')
-            )
-            for i, result in enumerate(results)
-        ]
-        
+        return search_results
+    except RuntimeError as e:
+        logger.error(f"Semantic search runtime error for query '{search_request.query}': {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except Exception as e:
-        logger.error(f"Erreur lors de la recherche '{query}': {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur de recherche: {str(e)}")
+        logger.error(f"Error during semantic search for query '{search_request.query}': {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error performing search")
 
-
-@router.post("/ask", response_model=RAGQueryResponse)
-async def ask_question(
-    request: RAGQueryRequest,
-    current_user: User = Depends(get_current_user)
+@router.post("/ask", response_model=QueryResponse)
+async def ask_question_with_llm(
+    query_request: RAGQueryRequest, # Use RAGQueryRequest from schemas/rag.py
+    current_user: UserModel = Depends(get_current_active_user)
 ):
     """
-    Pose une question et obtient une réponse générée par RAG.
-    
-    Pipeline complet avec RAGService :
-    1. Recherche sémantique des chunks pertinents
-    2. Génération de réponse avec LLM
-    3. Extraction des citations
-    4. Formatage de la réponse finale
+    Receives a query, performs semantic search, and generates an answer using LLM.
     """
+    if not query_request.query.strip():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Query cannot be empty")
+
     try:
-        if not request.question.strip():
-            raise HTTPException(status_code=400, detail="Question vide")
+        from app.services.rag_service import get_answer_from_llm # Import new service function
         
-        # Récupération du contexte de conversation si session fournie
-        conversation_history = []
-        if request.session_id:
-            conversation_history = rag_service.get_conversation_context(
-                session_id=request.session_id,
-                max_messages=10
-            )
+        result = await get_answer_from_llm(query=query_request.query, user=current_user)
         
-        # Génération de réponse avec RAGService
-        response = await rag_service.ask(
-            query=request.question,
-            user_id=str(current_user.id),
-            session_id=request.session_id,
-            conversation_history=conversation_history,
-            filters={'user_id': str(current_user.id)},
-            include_citations=True,
-            max_results=request.max_chunks or 5,
-            score_threshold=0.6
-        )
+        # Ensure the result from get_answer_from_llm matches QueryResponse structure.
+        # get_answer_from_llm returns {"answer": str, "sources": List[Dict_matching_SearchResultItem]}
+        # This should be directly compatible if SearchResultItem is correctly defined and used by get_answer_from_llm.
+        return result
         
-        if not response.get('success'):
-            raise HTTPException(
-                status_code=500,
-                detail=f"Erreur de génération: {response.get('error')}"
-            )
-        
-        # Sauvegarder l'historique si session fournie
-        if request.session_id:
-            rag_service.save_conversation(
-                query=request.question,
-                answer=response["answer"],
-                sources=response.get("sources", []),
-                user_id=str(current_user.id),
-                session_id=request.session_id,
-                metadata=response.get("metadata", {})
-            )
-        
-        logger.info(f"Question RAG traitée pour user {current_user.email}, session {request.session_id}")
-        
-        return RAGQueryResponse(
-            answer=response["answer"],
-            sources=response.get("sources", []),
-            citations=response.get("citations", []),
-            confidence=0.8,  # À calculer dynamiquement
-            processing_time=response.get("metadata", {}).get("response_time", 0),
-            session_id=request.session_id,
-            chunk_count=response.get("metadata", {}).get("sources_count", 0)
-        )
-        
+    except RuntimeError as e: # Catch specific error from service if a sub-service (LLM, vector store) is down
+        logger.error(f"RAG query runtime error for query '{query_request.query}': {e}")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(e))
     except Exception as e:
-        logger.error(f"Erreur lors du traitement de la question RAG: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur de génération: {str(e)}")
+        logger.error(f"Error during RAG query for '{query_request.query}': {e}")
+        # Consider logging the full stack trace for e in development/debug mode
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error processing your query.")
 
+# Keep the rest of the file (chat history, sessions, etc.) as is for now.
+# These will need refactoring to use the new services and models if they are to be kept.
 
-# ===== ÉTAPE 15.5 : Gestion de l'historique des conversations =====
+# ===== ÉTAPE 15.5 : Gestion de l'historique des conversations ===== (Still uses mock_db)
 
 @router.get("/history/{session_id}", response_model=List[ChatMessage])
 async def get_conversation_history(

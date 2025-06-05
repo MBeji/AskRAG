@@ -31,6 +31,42 @@ class RAGQueryRequest(BaseModel):
             }
         }
 
+# Added/updated for Step 14/15 RAG flow
+class SearchResultItem(BaseModel):
+    """Schema for an item in search results list."""
+    document_id: str = Field(..., description="MongoDB ID of the source document.")
+    chunk_index: int = Field(..., ge=0, description="Index of the chunk within the document.")
+    chunk_text: str = Field(..., description="Text content of the chunk.")
+    source_filename: str = Field(..., description="Original filename of the source document.")
+    score: Optional[float] = Field(None, description="Relevance score from FAISS (lower is better for L2, higher for IP/cosine).")
+    upload_date: Optional[datetime] = Field(None, description="Upload date of the source document.")
+
+    class Config:
+        from_attributes = True # If created from an ORM object later
+        # orm_mode = True # Pydantic v1
+
+class QueryResponse(BaseModel):
+    """Schema for the response from the /ask endpoint."""
+    answer: str = Field(..., description="LLM-generated answer.")
+    sources: List[SearchResultItem] = Field(..., description="List of source chunks used for the answer.")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "answer": "The capital of France is Paris, based on the provided documents.",
+                "sources": [
+                    {
+                        "document_id": "doc_123",
+                        "chunk_index": 0,
+                        "chunk_text": "Paris is the capital of France...",
+                        "source_filename": "france_guide.pdf",
+                        "score": 0.95,
+                        "upload_date": "2023-01-01T10:00:00Z"
+                    }
+                ]
+            }
+        }
+
 
 class DocumentSearchRequest(BaseModel):
     """Requête pour la recherche sémantique."""

@@ -49,8 +49,8 @@ services:
       FAISS_INDEX_PATH: /app/data/faiss_index
       
       # Environment
-      ENVIRONMENT: development
-      DEBUG: "True"
+      ENVIRONMENT: production
+      DEBUG: "False"
       
       # CORS
       CORS_ORIGINS: "http://localhost:3000,http://localhost:5173,http://frontend"

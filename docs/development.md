@@ -66,32 +66,55 @@ docker-compose up mongodb
 ## 🔧 Variables d'Environnement
 
 ### Backend (.env)
+Copiez `backend/.env.example` vers `backend/.env` et ajustez les valeurs.
+Voici les variables clés (consultez `app/core/config.py` pour la liste complète et les valeurs par défaut):
 ```bash
+# Application
+PROJECT_NAME=AskRAG API
+API_V1_STR=/api/v1
+ENVIRONMENT=development
+DEBUG=True
+PORT=8000
+
 # Database
-MONGODB_URL=mongodb://localhost:27017/askrag
-MONGODB_DB_NAME=askrag
+MONGODB_URL=mongodb://localhost:27017 # Ou l'URL de votre instance Docker/Atlas
+MONGODB_DATABASE=askrag_dev # Nom de la base de données
 
 # JWT
-JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
+JWT_SECRET_KEY=your-super-secret-jwt-key-must-be-changed
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_MINUTES=10080
 
 # OpenAI
-OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_API_KEY=sk-your-openai-api-key-here # Requis pour les fonctionnalités RAG
+EMBEDDING_MODEL_NAME=text-embedding-ada-002 # Modèle pour les embeddings
+
+# Text Splitting
+TEXT_CHUNK_SIZE=1000     # Taille des chunks de texte
+TEXT_CHUNK_OVERLAP=200   # Chevauchement des chunks
+
+# FAISS Vector Store
+FAISS_INDEX_PATH=faiss_indexes/askrag.index # Chemin de stockage de l'index FAISS
+FAISS_INDEX_DIMENSION=1536 # Dimension des embeddings (doit correspondre au modèle utilisé)
+
+# CORS (liste séparée par des virgules ou chaîne JSON)
+BACKEND_CORS_ORIGINS_STR="http://localhost:3000,http://localhost:5173"
 
 # File Upload
 UPLOAD_DIR=./uploads
 MAX_FILE_SIZE=10485760  # 10MB
+ALLOWED_EXTENSIONS_STR=pdf,txt,docx,md
 
-# FAISS
-FAISS_INDEX_PATH=./data/faiss_index
+# Email (optionnel, pour réinitialisation de mot de passe, etc.)
+# SMTP_HOST=
+# SMTP_PORT=587
+# SMTP_USER=
+# SMTP_PASSWORD=
+# EMAILS_FROM_EMAIL=noreply@example.com
 
-# Redis (optionnel)
-REDIS_URL=redis://localhost:6379
-
-# Environment
-ENVIRONMENT=development
-DEBUG=True
+# Redis (optionnel, si utilisé pour cache ou sessions)
+# REDIS_URL=redis://localhost:6379
 ```
 
 ### Frontend (.env.local)
@@ -139,19 +162,49 @@ npm run format
 ```
 
 ### Docker Development
+
+Pour lancer l'environnement de développement avec Docker, utilisez `docker-compose.dev.yml`. Ce fichier est configuré pour utiliser les `Dockerfile.dev` avec hot-reloading.
+
+Assurez-vous que Docker Desktop est en cours d'exécution.
+
+**Commandes recommandées (Docker Compose V2):**
 ```bash
-# Build et démarrer tous les services
-docker-compose up --build
+# Build et démarrer tous les services en arrière-plan
+docker compose --file docker-compose.dev.yml up --build -d
 
-# Démarrer en arrière-plan
-docker-compose up -d
+# Voir les logs des services (exemple pour le backend)
+docker compose --file docker-compose.dev.yml logs -f backend-dev
 
-# Voir les logs
-docker-compose logs -f
+# Voir l'état des services
+docker compose --file docker-compose.dev.yml ps
 
 # Arrêter tous les services
-docker-compose down
+docker compose --file docker-compose.dev.yml down
+
+# Pour forcer une reconstruction des images
+docker compose --file docker-compose.dev.yml up --build --force-recreate -d
 ```
+
+**Commandes alternatives (si vous utilisez Docker Compose V1):**
+Si `docker compose` n'est pas reconnu, vous pourriez avoir une version plus ancienne (V1). Essayez:
+```bash
+# Build et démarrer tous les services en arrière-plan
+docker-compose -f docker-compose.dev.yml up --build -d
+
+# Voir les logs des services (exemple pour le backend)
+docker-compose -f docker-compose.dev.yml logs -f backend-dev
+
+# Voir l'état des services
+docker-compose -f docker-compose.dev.yml ps
+
+# Arrêter tous les services
+docker-compose -f docker-compose.dev.yml down
+```
+
+**Notes:**
+- Les variables d'environnement pour les services Docker sont généralement définies directement dans les fichiers `docker-compose.*.yml` ou via des fichiers `.env.*` spécifiés dans ces fichiers (par exemple, via `env_file` directive). Actuellement, elles sont principalement dans les fichiers compose.
+- Le service MongoDB utilise un volume nommé (`mongodb_dev_data`) pour la persistance des données en développement.
+- Les codes sources du backend et du frontend sont montés en volume pour permettre le hot-reloading.
 
 ## 🧪 Tests
 
@@ -379,3 +432,17 @@ npm install --save-dev package-name
 npm audit
 npm audit fix
 ```
+
+## 🔒 Sécurité
+
+### En-têtes de Sécurité
+- **Backend**: Des en-têtes de sécurité (X-Content-Type-Options, X-Frame-Options, CSP, etc.) sont appliqués via middleware dans FastAPI.
+- **Frontend (Production)**: La configuration Nginx (`frontend/nginx.conf`) inclut également des en-têtes de sécurité pour les assets servis en production.
+
+### Rate Limiting
+- Le backend utilise `slowapi` pour la limitation de taux afin de protéger contre les attaques par force brute ou déni de service. Les limites sont configurables via les variables d'environnement.
+
+### Stockage Vectoriel (FAISS)
+- Les embeddings des chunks de documents sont stockés dans un index FAISS.
+- Le chemin de cet index (`FAISS_INDEX_PATH`) et sa dimension (`FAISS_INDEX_DIMENSION`) sont configurables.
+- L'index FAISS (par exemple, le dossier `faiss_indexes/`) est ajouté au `.gitignore` pour ne pas être versionné.

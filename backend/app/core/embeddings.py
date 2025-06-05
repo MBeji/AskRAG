@@ -280,4 +280,52 @@ class EmbeddingService:
         return embedding
 
 # Instance globale pour la compatibilité
-embedding_service = EmbeddingService()
+# This instance uses default model "text-embedding-3-small" and API key from env.
+# embedding_service = EmbeddingService()
+# For Step 12, we'll create a function that uses settings from config.py for model name.
+
+from app.core.config import settings as app_settings # Import app_settings
+
+# Initialize a global service instance using settings from config.py
+# This ensures that the model name and API key from the central config are used.
+# Note: This will be initialized at module load time.
+# If settings depend on .env files not yet loaded at this point for some reason,
+# defer instantiation or ensure .env is loaded prior to this module.
+# Given current setup, BaseSettings in config.py loads .env.
+try:
+    global_embedding_service = EmbeddingService(
+        model_name=app_settings.EMBEDDING_MODEL_NAME,
+        api_key=app_settings.OPENAI_API_KEY
+    )
+except ValueError as e:
+    # Handle cases where API key might be missing and not in test mode
+    logging.getLogger(__name__).error(f"Failed to initialize Global EmbeddingService: {e}")
+    global_embedding_service = None
+
+async def generate_embeddings(texts: List[str]) -> List[List[float]]:
+    """
+    Generates embeddings for a list of text chunks using the global EmbeddingService.
+    """
+    if global_embedding_service is None:
+        # This can happen if OPENAI_API_KEY is not set and ENVIRONMENT is not 'development'
+        logging.getLogger(__name__).error("EmbeddingService not initialized. Cannot generate embeddings.")
+        # Depending on desired behavior, either raise an exception or return empty lists/errors.
+        # For now, let's raise an error or return a list of empty embeddings matching input length.
+        # This should ideally be caught upstream.
+        raise RuntimeError("EmbeddingService not available. Check OPENAI_API_KEY.")
+
+    if not texts:
+        return []
+
+    try:
+        # The existing EmbeddingService.get_embeddings_batch handles batching internally if needed,
+        # but its primary interface is List[str] -> List[List[float]] for a single "batch" call from user.
+        # It also has its own retry logic.
+        embeddings = global_embedding_service.get_embeddings_batch(texts=texts, use_cache=True) # Use batch method
+        return embeddings
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Error generating embeddings: {e}")
+        # Handle specific OpenAI API errors if necessary, or re-raise
+        # For now, return list of empty lists to match expected output structure on error
+        # Or re-raise to let the caller handle it. Let's re-raise for now.
+        raise
